@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* دعم الكتابة من اليمين لليسار */
+html {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Tajawal', system-ui, sans-serif; /* خط عربي أنيق */
+}
+
+/* تحسين للألوان والخلفية */
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #f8fafc; /* خلفية فاتحة */
+  color: #1f2937; /* نص غامق */
+}
+
+a {
+  font-weight: 500;
+  color: #2563eb;
+  text-decoration: none;
+}
+a:hover {
+  color: #1d4ed8;
+}
+
+button {
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+button:focus {
+  outline: none;
+  ring: 2px solid #2563eb;
+}
