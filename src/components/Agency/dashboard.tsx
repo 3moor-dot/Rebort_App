@@ -1,3 +1,4 @@
+// src/components/Agency/declaration.tsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -5,17 +6,10 @@ interface Dashboard {
   id: number;
   title: string;
   Fdate: string; // تاريخ التقديم
-  status: "معلق" | "مقبول" | "مرفوض" | "معدل";
+  status: "معلق" | "مقبول" | "مرفوض";
   Ldate: string; // تاريخ الرد
+  userId: number; // 🔥 ربط الإقرار بالمستخدم
 }
-
-const defaultDeclarations: Dashboard[] = [
-  { id: 1, title: "تصريح ضريبة الأملاك", Fdate: "2024-07-20", status: "معلق", Ldate: "2024-08-20" },
-  { id: 2, title: "تصريح ضريبة الدخل", Fdate: "2024-06-15", status: "مقبول", Ldate: "2024-07-30" },
-  { id: 3, title: "تصريح رخصة تجارية", Fdate: "2024-05-01", status: "مرفوض", Ldate: "2024-07-22" },
-  { id: 4, title: "تصريح تسجيل المركبات", Fdate: "2024-04-10", status: "معدل", Ldate: "2024-06-20" },
-  { id: 5, title: "تصريح رسوم الاستيراد", Fdate: "2024-03-05", status: "مقبول", Ldate: "2024-04-20" },
-];
 
 function getStatusClasses(status: string) {
   switch (status) {
@@ -35,17 +29,42 @@ export default function DeclarationsPage() {
   const [toDate, setToDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  // جلب البيانات من localStorage
+  // المستخدم الحالي
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // جلب البيانات
   useEffect(() => {
-    const saved = localStorage.getItem("declarations");
-    if (saved) {
-      setDeclarations(JSON.parse(saved));
-    } else {
-      setDeclarations(defaultDeclarations);
+    const savedUser = localStorage.getItem("currentUser");
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
     }
+
+    const savedDeclarations = localStorage.getItem("declarations");
+    if (savedDeclarations) {
+      const parsed = JSON.parse(savedDeclarations);
+      const normalized = parsed.map((d: any) => ({
+        ...d,
+        id: Number(d.id),       // ✅ id رقم
+        userId: Number(d.userId), // ✅ userId رقم
+      }));
+      setDeclarations(normalized);
+    }
+
   }, []);
 
+  // ✅ حذف القرار
+  const handleDelete = (id: number) => {
+    if (window.confirm("هل أنت متأكد من حذف هذا القرار؟")) {
+      const updated = declarations.filter((d) => d.id !== id);
+      setDeclarations(updated);
+      localStorage.setItem("declarations", JSON.stringify(updated));
+    }
+  };
+
+  // فلترة بناءً على المستخدم الحالي + البحث + التواريخ + الحالة
   const filtered = declarations.filter((d) => {
+    if (currentUser && d.userId !== currentUser.id) return false; // 🔥 بس إقرارات المستخدم الحالي
+
     const matchesSearch = d.title.toLowerCase().includes(search.toLowerCase());
 
     const declarationDate = new Date(d.Fdate);
@@ -61,14 +80,19 @@ export default function DeclarationsPage() {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen font-sans" dir="rtl">
-      {/* العنوان + زر عمل إقرار */}
+      {/* العنوان + اسم المستخدم + زر عمل إقرار */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">إقراراتى</h1>
+        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+          قراراتى
+          {currentUser && (
+            <span className="text-lg text-gray-600">/ {currentUser.agencyName || currentUser.username}</span>
+          )}
+        </h1>
         <button
-          onClick={() => navigate("/create decition")}
+          onClick={() => navigate("/create-decition")}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition"
         >
-          عمل إقرار
+          إنشاء قرار جديد
         </button>
       </div>
       <hr /> <br />
@@ -114,7 +138,6 @@ export default function DeclarationsPage() {
             <option value="معلق">معلق</option>
             <option value="مقبول">مقبول</option>
             <option value="مرفوض">مرفوض</option>
-            <option value="معدل">معدل</option>
           </select>
         </div>
       </div>
@@ -129,6 +152,7 @@ export default function DeclarationsPage() {
               <th className="px-4 py-3 border-b">الحالة</th>
               <th className="px-4 py-3 border-b">إجراء</th>
               <th className="px-4 py-3 border-b">تاريخ الرد</th>
+              <th className="px-4 py-3 border-b">حذف</th>
             </tr>
           </thead>
           <tbody>
@@ -142,21 +166,28 @@ export default function DeclarationsPage() {
                   </span>
                 </td>
                 <td className="px-2 py-2 border-b">
-                  <button className="hover:underline text-blue-600">عرض</button>
-                </td>
-                <td className="px-4 py-3 border-b">
-                  {d.Ldate ? (
-                    d.Ldate
-                  ) : (
-                    <span className="block w-16 h-[1px] bg-gray-300 mx-auto"></span>
-                  )}
-                </td>
+                  <button
+                    className="hover:underline text-blue-600"
+                    onClick={() => navigate(`/decision/${d.id}`)}
+                  >
+                    عرض
+                  </button>
 
+                </td>
+                <td className="px-4 py-3 border-b">{d.Ldate}</td>
+                <td className="px-2 py-2 border-b">
+                  <button
+                    onClick={() => handleDelete(d.id)}
+                    className="text-red-600 hover:underline"
+                  >
+                    حذف
+                  </button>
+                </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-center py-4 text-gray-500">
+                <td colSpan={6} className="text-center py-4 text-gray-500">
                   لا توجد نتائج مطابقة
                 </td>
               </tr>

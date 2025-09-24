@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// تعريف الإقرار
 interface Declaration {
   id: number;
   title: string;
@@ -10,15 +9,16 @@ interface Declaration {
   Fdate: string;
   status: "معلق" | "مقبول" | "مرفوض";
   Ldate: string;
+  userId: number;
+  userEmail: string;
 }
 
-// ✅ تعريف المستخدم
 interface User {
   id: number;
   email: string;
   password: string;
   role: "agency" | "admin" | "governor";
-  agencyName?: string; // 👈 جديد لو المستخدم وكالة
+  agencyName?: string;
 }
 
 export default function AdminDashboard() {
@@ -32,13 +32,29 @@ export default function AdminDashboard() {
   });
   const [showForm, setShowForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [expandedUser, setExpandedUser] = useState<number | null>(null);
+  const [error, setError] = useState("");
 
+  // 🟢 تحميل البيانات
   useEffect(() => {
     const savedDec = localStorage.getItem("declarations");
     const savedUsers = localStorage.getItem("users");
 
-    setDeclarations(savedDec ? JSON.parse(savedDec) : []);
+    const decs: Declaration[] = savedDec
+      ? JSON.parse(savedDec).map((d: any) => ({
+        ...d,
+        userId: Number(d.userId), // ✅ دايمًا رقم
+        id: Number(d.id),         // ✅ حتى id نخليه رقم
+      }))
+      : [];
+    let loadedUsers: User[] = savedUsers
+      ? JSON.parse(savedUsers).map((u: any) => ({
+        ...u,
+        id: Number(u.id), // ✅ توحيد
+      }))
+      : [];
 
+    // ✅ الأدمن الأساسي
     const defaultAdmin: User = {
       id: 1,
       email: "3moor192218@gmail.com",
@@ -46,20 +62,37 @@ export default function AdminDashboard() {
       role: "admin",
     };
 
-    let loadedUsers: User[] = savedUsers ? JSON.parse(savedUsers) : [];
-
-    const exists = loadedUsers.some((u) => u.email === defaultAdmin.email);
-    if (!exists) {
-      loadedUsers = [defaultAdmin, ...loadedUsers];
+    // لو مفيش أي مستخدمين محفوظين → نحط الأدمن الأساسي فقط
+    if (loadedUsers.length === 0) {
+      loadedUsers = [defaultAdmin];
       localStorage.setItem("users", JSON.stringify(loadedUsers));
     }
 
     setUsers(loadedUsers);
+    setDeclarations(decs);
   }, []);
 
-  // إنشاء مستخدم جديد
+  // 🟢 حفظ أي تعديل
+  useEffect(() => {
+    if (users.length > 0) {
+      localStorage.setItem("users", JSON.stringify(users));
+    }
+  }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem("declarations", JSON.stringify(declarations));
+  }, [declarations]);
+
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+
+    const exists = users.some((u) => u.email === newUser.email);
+    if (exists) {
+      setError("❌ هذا البريد مستخدم بالفعل!");
+      return;
+    }
+
     const user: User = {
       id: Date.now(),
       email: newUser.email,
@@ -68,9 +101,7 @@ export default function AdminDashboard() {
       agencyName: newUser.role === "agency" ? newUser.agencyName : undefined,
     };
 
-    const updatedUsers = [...users, user];
-    setUsers(updatedUsers);
-    localStorage.setItem("users", JSON.stringify(updatedUsers));
+    setUsers((prev) => [...prev, user]);
 
     setNewUser({ email: "", password: "", role: "agency", agencyName: "" });
     setShowForm(false);
@@ -78,15 +109,34 @@ export default function AdminDashboard() {
     alert("✅ تم إنشاء المستخدم بنجاح");
   };
 
-  // حذف مستخدم
-  const handleDeleteUser = (id: number) => {
+  const handleDeleteUser = (id: number, _email: string) => {
     if (id === 1) {
       alert("❌ لا يمكن حذف الأدمن الأساسي!");
       return;
     }
-    const updatedUsers = users.filter((u) => u.id !== id);
+
+    // تحديث البيانات
+    const updatedUsers = users.filter((u) => Number(u.id) !== Number(id));
+    const updatedDeclarations = declarations.filter((d) => Number(d.userId) !== Number(id));
+
+
     setUsers(updatedUsers);
-    localStorage.setItem("users", JSON.stringify(updatedUsers));
+    setDeclarations(updatedDeclarations);
+
+    alert(`🗑️ تم حذف المستخدم (ID: ${id}) وجميع قرارته.`);
+  };
+
+  const translateRole = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "أدمن";
+      case "agency":
+        return "جهة";
+      case "governor":
+        return "محافظ";
+      default:
+        return role;
+    }
   };
 
   return (
@@ -95,7 +145,7 @@ export default function AdminDashboard() {
 
       {/* الإحصائيات */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        <StatCard title="إجمالي الإقرارات" value={declarations.length} color="blue" />
+        <StatCard title="إجمالي القرارات" value={declarations.length} color="blue" />
         <StatCard title="المقبولة" value={declarations.filter((d) => d.status === "مقبول").length} color="green" />
         <StatCard title="المرفوضة" value={declarations.filter((d) => d.status === "مرفوض").length} color="red" />
         <StatCard title="المعلقة" value={declarations.filter((d) => d.status === "معلق").length} color="yellow" />
@@ -161,12 +211,11 @@ export default function AdminDashboard() {
                     className="border rounded-lg px-3 py-2 w-full"
                   >
                     <option value="agency">جهة</option>
-                    <option value="governor">مدير</option>
+                    <option value="governor">محافظ</option>
                     <option value="admin">أدمن</option>
                   </select>
                 </div>
 
-                {/* يظهر فقط لو الدور = وكالة */}
                 {newUser.role === "agency" && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">اسم الوكالة</label>
@@ -180,6 +229,8 @@ export default function AdminDashboard() {
                     />
                   </div>
                 )}
+
+                {error && <p className="text-red-600 text-sm">{error}</p>}
 
                 <button
                   type="submit"
@@ -201,16 +252,44 @@ export default function AdminDashboard() {
         ) : (
           <ul className="space-y-2">
             {users.map((u) => (
-              <li key={u.id} className="flex justify-between items-center border-b py-2">
-                <span>
-                  {u.email} - <span className="text-gray-500">({u.role})</span>
-                  {u.role === "agency" && u.agencyName && (
-                    <span className="ml-2 text-blue-600">[{u.agencyName}]</span>
+              <li key={u.id} className="border-b py-2">
+                <div
+                  onClick={() => setExpandedUser(expandedUser === u.id ? null : u.id)}
+                  className="flex justify-between items-center cursor-pointer"
+                >
+                  <span>
+                    {u.email} - <span className="text-gray-500">({translateRole(u.role)})</span>
+                    {u.role === "agency" && u.agencyName && (
+                      <span className="ml-2 text-blue-600">[{u.agencyName}]</span>
+                    )}
+                  </span>
+                  {u.id !== 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteUser(u.id, u.email);
+                      }}
+                      className="text-red-600 hover:underline"
+                    >
+                      حذف
+                    </button>
                   )}
-                </span>
-                <button onClick={() => handleDeleteUser(u.id)} className="text-red-600 hover:underline">
-                  حذف
-                </button>
+                </div>
+
+                <AnimatePresence>
+                  {expandedUser === u.id && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="bg-gray-50 rounded-lg p-3 mt-2 text-sm text-gray-700"
+                    >
+                      <p><strong>📧 الإيميل:</strong> {u.email}</p>
+                      <p><strong>🔑 كلمة المرور:</strong> {u.password}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </li>
             ))}
           </ul>
@@ -220,7 +299,6 @@ export default function AdminDashboard() {
   );
 }
 
-// بطاقة الإحصائيات
 function StatCard({ title, value, color }: { title: string; value: number; color: string }) {
   const colors: any = {
     blue: "text-blue-600",
